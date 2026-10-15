@@ -29,9 +29,15 @@ for _, s in Shovels.List do
 	row.RichText = true
 	row.Text = `<b>{s.Name}</b>\n{Shovels.speedText(s)} · {s.Price} coins`
 	row.Parent = frame
+	row.Activated:Connect(function()
+		local ok, msg = ReplicatedStorage:WaitForChild("BuyShovel"):InvokeServer(s.Name)
+		row.Text = `<b>{s.Name}</b>\n{ok and "Purchased!" or msg}`
+		task.delay(1.5, function()
+			row.Text = `<b>{s.Name}</b>\n{Shovels.speedText(s)} · {s.Price} coins`
+		end)
+	end)
 end
 
--- Open the shop by setting the "ShopOpen" attribute on the local player's gui from your shop NPC/button.
-gui:GetAttributeChangedSignal("ShopOpen"):Connect(function()
-	gui.Enabled = gui:GetAttribute("ShopOpen") == true
+ReplicatedStorage:WaitForChild("OpenTreasureShop").OnClientEvent:Connect(function()
+	gui.Enabled = not gui.Enabled
 end)
