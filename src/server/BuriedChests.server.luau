@@ -122,8 +122,10 @@ local function bury(chest: Model)
 	local function stop()
 		if stopAnim then stopAnim() stopAnim = nil end
 	end
-	prompt.PromptButtonHoldBegan:Connect(function(player)
+	prompt.PromptShown:Connect(function(player)
 		prompt.HoldDuration = Shovels.digSeconds((equippedShovel(player)))
+	end)
+	prompt.PromptButtonHoldBegan:Connect(function(player)
 		stop()
 		stopAnim = startDigAnimation(player)
 	end)
