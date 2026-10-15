@@ -44,6 +44,9 @@ local function startDigAnimation(player: Player): () -> ()
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	if not char or not hum then return function() end end
 	local joints: { [Motor6D]: CFrame } = {}
+	-- Swing the equipped shovel itself via its grip so the tool visibly digs.
+	local grip = char:FindFirstChild("RightGrip", true)
+	local gripBase = if grip and grip:IsA("Weld") then grip.C0 else nil
 	for _, name in { "RightShoulder", "LeftShoulder", "Waist" } do
 		local m = char:FindFirstChild(name, true)
 		if m and m:IsA("Motor6D") then joints[m] = m.C0 end
@@ -51,6 +54,9 @@ local function startDigAnimation(player: Player): () -> ()
 	local t0 = os.clock()
 	local conn = RunService.Heartbeat:Connect(function()
 		local s = math.sin((os.clock() - t0) * 7)
+		if grip and grip:IsA("Weld") and gripBase then
+			grip.C0 = gripBase * CFrame.Angles(math.rad(35 * s), 0, 0)
+		end
 		for m, base in joints do
 			if m.Name == "Waist" then
 				m.C0 = base * CFrame.Angles(math.rad(18 + 10 * s), 0, 0)
@@ -62,6 +68,7 @@ local function startDigAnimation(player: Player): () -> ()
 	return function()
 		conn:Disconnect()
 		for m, base in joints do m.C0 = base end
+		if grip and grip:IsA("Weld") and gripBase then grip.C0 = gripBase end
 	end
 end
 
