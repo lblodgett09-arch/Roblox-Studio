@@ -6,6 +6,9 @@
 
 local CollectionService = game:GetService("CollectionService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Shovels = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Shovels"))
 
 local CHEST_TAG = "Chest"
 local DIRT_COLOR = Color3.fromRGB(105, 70, 40)
@@ -22,6 +25,44 @@ local function makePart(name: string, size: Vector3, color: Color3, material: En
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	return p
+end
+
+-- Equipped shovel = a Tool in the character whose name matches a Shovels entry.
+local function equippedShovel(player: Player): (Shovels.Shovel?, Tool?)
+	local char = player.Character
+	local tool = char and char:FindFirstChildOfClass("Tool")
+	if tool then
+		local def = Shovels.get(tool.Name)
+		if def then return def, tool end
+	end
+	return nil, nil
+end
+
+-- Procedural dig animation: bobs the arms/torso like shoveling while the prompt is held.
+local function startDigAnimation(player: Player): () -> ()
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not char or not hum then return function() end end
+	local joints: { [Motor6D]: CFrame } = {}
+	for _, name in { "RightShoulder", "LeftShoulder", "Waist" } do
+		local m = char:FindFirstChild(name, true)
+		if m and m:IsA("Motor6D") then joints[m] = m.C0 end
+	end
+	local t0 = os.clock()
+	local conn = RunService.Heartbeat:Connect(function()
+		local s = math.sin((os.clock() - t0) * 7)
+		for m, base in joints do
+			if m.Name == "Waist" then
+				m.C0 = base * CFrame.Angles(math.rad(18 + 10 * s), 0, 0)
+			else
+				m.C0 = base * CFrame.Angles(math.rad(-50 - 40 * s), 0, 0)
+			end
+		end
+	end)
+	return function()
+		conn:Disconnect()
+		for m, base in joints do m.C0 = base end
+	end
 end
 
 local function bury(chest: Model)
@@ -68,13 +109,29 @@ local function bury(chest: Model)
 
 	-- Dig prompt on the pile.
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = "Dig"
+	prompt.ActionText = "Dig Up Chest"
 	prompt.ObjectText = "Buried Chest"
-	prompt.HoldDuration = 1.5
+	prompt.HoldDuration = Shovels.BASE_DIG_SECONDS
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.RequiresLineOfSight = false
 	prompt.MaxActivationDistance = 10 + footprint
 	prompt.Parent = mound
 
+	-- Dig time depends on the equipped shovel (wood = 4s); animate while holding.
+	local stopAnim: (() -> ())? = nil
+	local function stop()
+		if stopAnim then stopAnim() stopAnim = nil end
+	end
+	prompt.PromptButtonHoldBegan:Connect(function(player)
+		prompt.HoldDuration = Shovels.digSeconds((equippedShovel(player)))
+		stop()
+		stopAnim = startDigAnimation(player)
+	end)
+	prompt.PromptButtonHoldEnded:Connect(stop)
+	prompt.PromptHidden:Connect(stop)
+
 	prompt.Triggered:Connect(function(player)
+		stop()
 		prompt:Destroy()
 		mound:Destroy()
 		xModel:Destroy()
